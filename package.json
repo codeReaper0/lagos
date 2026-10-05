@@ -1,0 +1,14 @@
+{
+  "name": "lagos-life-automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node lagos-life.js",
+    "dry-run": "HEADLESS=0 node lagos-life.js",
+    "send": "SEND_MONEY=1 node lagos-life.js"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
