@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
-# no `set -e` — we want the loop to keep going after a failed run
+# Single-worker smoke test. Use this to validate selectors before starting the
+# fleet with `pm2 start ecosystem.config.js`.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Defaults — override per-wrapper if needed
-export INSTANCE_ID="${INSTANCE_ID:-0}"
-export SEND_MONEY="${SEND_MONEY:-1}"
-export TOTAL_RUNS="${TOTAL_RUNS:-10000}"
-export RECYCLE_EVERY="${RECYCLE_EVERY:-25}"
-export PW_TIMEOUT="${PW_TIMEOUT:-45000}"
-export RETRY_ATTEMPTS="${RETRY_ATTEMPTS:-2}"
+# INSTANCE_ID is mandatory and must be unique per worker — this is the setting
+# that made the old 20 wrappers collide. "smoke" keeps it clear of the numeric
+# IDs the pm2 fleet uses.
+export INSTANCE_ID="${INSTANCE_ID:-smoke}"
+export HEADLESS="${HEADLESS:-0}"
+export TOTAL_RUNS="${TOTAL_RUNS:-1}"
+export TRANSFER_MODE="${TRANSFER_MODE:-none}"
+export START_JITTER_MS="${START_JITTER_MS:-0}"
 
-# Single call — the JS loop handles all 10000 runs.
-node lagos-life.js
-exit_code=$?
-
-if [ "$exit_code" -ne 0 ]; then
-  echo "lagos-life.js exited with code $exit_code — letting PM2 restart"
-  exit "$exit_code"
-fi
-
-echo "All runs complete."
+exec node lagos-life.js
