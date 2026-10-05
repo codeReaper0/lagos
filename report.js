@@ -99,6 +99,28 @@ for (const f of failed) {
 
 const workers = [...new Set(entries.map((e) => e.instance))];
 
+// Transfer endpoint: status-code distribution and API latency. A rising share
+// of 429/5xx here is the signal you're looking for — it means the send path,
+// not the signup path, is what gives first.
+const attempted = entries.filter((e) => e.transfer?.attempted);
+const statusCounts = {};
+for (const e of attempted) {
+  const key = e.transfer.status ? String(e.transfer.status) : "no-response";
+  statusCounts[key] = (statusCounts[key] || 0) + 1;
+}
+const apiTimes = attempted
+  .map((e) => e.transfer.apiMs)
+  .filter((v) => typeof v === "number")
+  .sort((a, b) => a - b);
+const transferStats = attempted.length
+  ? {
+      attempted: attempted.length,
+      submitted: attempted.filter((e) => e.transfer.submitted).length,
+      statusCounts,
+      apiLatency: {p50: pct(apiTimes, 50), p95: pct(apiTimes, 95), max: apiTimes[apiTimes.length - 1] || 0},
+    }
+  : null;
+
 const summary = {
   workers: workers.length,
   totalRuns: entries.length,
@@ -115,6 +137,7 @@ const summary = {
     max: durations[durations.length - 1] || 0,
   },
   phases: phaseStats,
+  transfer: transferStats,
   topErrors: Object.entries(errorCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10),
@@ -146,6 +169,16 @@ if (Object.keys(phaseStats).length) {
       `  ${name.padEnd(14)}${fmt(s.p50).padStart(10)}${fmt(s.p95).padStart(10)}${fmt(s.max).padStart(10)}`,
     );
   }
+}
+
+if (transferStats) {
+  console.log(`\nTransfer endpoint (${transferStats.submitted}/${transferStats.attempted} submitted)`);
+  console.log("-".repeat(52));
+  for (const [status, count] of Object.entries(transferStats.statusCounts).sort((a, b) => b[1] - a[1])) {
+    const pctOf = ((count / transferStats.attempted) * 100).toFixed(1);
+    console.log(`  ${status.padEnd(14)}${String(count).padStart(6)}  (${pctOf}%)`);
+  }
+  console.log(`  API latency    p50 ${fmt(transferStats.apiLatency.p50)}   p95 ${fmt(transferStats.apiLatency.p95)}   max ${fmt(transferStats.apiLatency.max)}`);
 }
 
 if (summary.topErrors.length) {

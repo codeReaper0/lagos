@@ -299,6 +299,15 @@ async function dumpInteractive(page, label) {
 // across runs within a process.
 const transferState = {submitted: 0};
 
+// Per-run outcome, reset by the main loop. This is what makes the transfer
+// test worth running: the HTTP status and latency of the send endpoint under
+// load, not just "it clicked".
+let lastTransfer = null;
+function resetTransferOutcome() {
+  lastTransfer = {attempted: false, submitted: false};
+}
+resetTransferOutcome();
+
 async function sendMaxAmount(page) {
   // Snapshot the page BEFORE clicking Max so we can compare.
   const beforeSnapshot = await page.evaluate(() => {
@@ -402,7 +411,9 @@ async function sendMaxAmount(page) {
     return;
   }
 
-  // 6) Click Send and wait for the POST.
+  // 6) Click Send, and time the POST round-trip specifically.
+  lastTransfer.attempted = true;
+  const sendStarted = Date.now();
   const [response] = await Promise.all([
     page
       .waitForResponse(
@@ -416,8 +427,13 @@ async function sendMaxAmount(page) {
   ]);
 
   transferState.submitted++;
+  lastTransfer.submitted = true;
+  lastTransfer.apiMs = Date.now() - sendStarted;
 
   if (response) {
+    lastTransfer.status = response.status();
+    // Rate limiting / rejection under load is a *result*, not a failure.
+    if (response.status() === 429) log("Send endpoint returned 429 (rate limited).");
     log(`Send API status: ${response.status()} → ${response.url()}`);
   } else {
     log("⚠️ No send API response captured — the click may still have worked.");
@@ -631,6 +647,7 @@ async function main() {
       });
 
       const timer = makeTimer();
+      resetTransferOutcome();
       let page;
       try {
         page = await context.newPage();
@@ -650,6 +667,7 @@ async function main() {
           ok: true,
           durationMs: Date.now() - runStarted,
           phases: timer.phases(),
+          transfer: lastTransfer,
         });
       } catch (err) {
         // A single failed run is data, not a reason to kill the worker and let
@@ -663,6 +681,7 @@ async function main() {
           ok: false,
           durationMs: Date.now() - runStarted,
           phases: timer.phases(),
+          transfer: lastTransfer,
           error: err.message,
           screenshot: shot,
         });

@@ -8,7 +8,9 @@
     "fleet:start": "pm2 start ecosystem.config.js",
     "fleet:stop": "pm2 delete ecosystem.config.js",
     "fleet:logs": "pm2 logs",
-    "report": "node report.js"
+    "report": "node report.js",
+    "smoke:transfer": "TRANSFER_MODE=fixed TRANSFER_BUDGET=1 ./dry-run.sh",
+    "fleet:transfer": "TRANSFER_MODE=fixed TRANSFER_BUDGET=25 pm2 start ecosystem.config.js"
   },
   "dependencies": {
     "playwright": "^1.50.0"

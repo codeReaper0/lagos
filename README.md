@@ -114,6 +114,29 @@ Set in `ecosystem.config.js` or override at the shell.
 unlimited); once reached, the worker still exercises the UI but stops
 submitting.
 
+Testing the send endpoint:
+
+```bash
+npm run smoke:transfer     # 1 worker, 1 real transfer — verify it works
+npm run fleet:transfer     # 20 workers x 25 transfers each, fixed amount
+npm run report             # status-code mix + send-API latency
+```
+
+The report then includes a transfer section:
+
+```
+Transfer endpoint (500/500 submitted)
+  200               412  (82.4%)
+  429                76  (15.2%)
+  500                12  (2.4%)
+  API latency    p50 439ms   p95 2.78s   max 3.05s
+```
+
+A rising share of 429/5xx there is the finding — it tells you the send path,
+not the signup path, is what gives first under load. `429` is logged explicitly
+rather than treated as a run failure, since rate limiting is a correct
+response, not a bug.
+
 Default is `none` because capacity testing the signup funnel doesn't require
 completed transfers. If you need to measure the transfer write path, use
 `fixed` with a `TRANSFER_BUDGET` — that gives you the same latency data without
